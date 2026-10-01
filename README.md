@@ -30,9 +30,9 @@
 
 ---
 
-## 3. GitHub Releases による学生向け配布手順
+## 3. GitHub Releases による配布手順
 
-GitHub の **Releases** 機能を活用して、学生にパッケージを一括展開する手順です：
+GitHub の **Releases** 機能を活用して、パッケージを一括展開する手順です：
 
 ### Step 1: Git リポジトリの初期化とプッシュ
 ```bash
@@ -56,7 +56,7 @@ git push origin v1.0.0
 4. **「Attach binaries by dropping them here or selecting them」** に以下のアセットをドラッグ＆ドロップ：
    - `01_Django/exShop_project.zip` (Django版演習コード)
    - `02_Flask/exShop_flask.zip` (Flask版演習コード)
-   - `03_Servlet/build_war.bat` または生成された `exShop.war` (Servlet版WARパッケージ)
+   - `03_Servlet/target/exShop.war` (Servlet版WARパッケージ)
 5. **「Publish release」** をクリックして公開！
 
-学生は Release ページから必要な ZIP / WAR をダウンロードするだけで、すぐに演習を開始できます。
+Release ページから必要な ZIP / WAR をダウンロードするだけで、すぐに演習を開始できます。
