@@ -1,277 +1,410 @@
-# 【完全手順書】GitHub リリース ＆ AWS EC2 デプロイガイド (Django / Flask / Servlet)
+# Webアプリケーション公開実践マニュアル（AWS EC2編）
 
-本ドキュメントは、**exShop Multi-Framework Suite**（Django版・Flask版・Servlet版）を **GitHub で管理・リリース** し、クラウドの **AWS EC2（Linux）環境へデプロイして本番公開するまでの全手順** をまとめた演習用完全マニュアルです。
-
----
-
-## 目次
-1. [手順書の形式と推奨運用方法](#1-手順書の形式と推奨運用方法)
-2. [PART 1: GitHub リポジトリ作成 ＆ Releases 公開](#2-part-1-github-リポジトリ作成--releases-公開)
-3. [PART 2: AWS EC2 インスタンスの準備 ＆ 初期設定](#3-part-2-aws-ec2-インスタンスの準備--初期設定)
-4. [PART 3: 各システムのデプロイ手順](#4-part-3-各システムのデプロイ手順)
-   - [① Django 版のデプロイ (Gunicorn + Systemd)](#①-django-版のデプロイ-gunicorn--systemd)
-   - [② Flask 版のデプロイ (Gunicorn + Systemd)](#②-flask-版のデプロイ-gunicorn--systemd)
-   - [③ Servlet 版のデプロイ (Tomcat 10 + WAR)](#③-servlet-版のデプロイ-tomcat-10--war)
-5. [PART 4: Nginx による 1台のEC2での同時公開設定](#5-part-4-nginx-による-1台のec2での同時公開設定)
+このマニュアルでは、手元のパソコンで作ったWebアプリケーション（Django / Flask / Servlet）を、世界中のインターネットから誰でも見られるように「クラウドサーバー（AWS EC2）」へ設置して公開する手順を、ゼロから順番に解説します。
 
 ---
 
-## 1. 手順書の形式と推奨運用方法
+## 全体の流れ（何をするのか？）
 
-| 形式 | メリット | デメリット | おすすめの用途 |
-|---|---|---|---|
-| **Markdown (.md)** ★推奨 | GitHub上で最も綺麗に閲覧可能。IDEでも直接見られ、Gitで差分管理できる。Qiita/Zennへの転載もワンクリック。 | ブラウザ単体では raw 表示になる。 | **原本（マスター）としてリポジトリに配置** |
-| **単一HTML (.html)** ★推奨 | **全環境（Win/Mac/スマホ）でブラウザさえあれば100%確実に動作**。目次ナビやワンクリックコピー機能が付けられる。 | テキストエディタで見るとタグが多くなる。 | **学生へのオフライン配布・自習用マニュアル** |
-| **Qiita / Zenn** | 一般公開しやすく、外部からの認知やポートフォリオになる。 | 機密情報や演習用限定コードを含む場合に注意が必要。 | 一般公開・ノウハウ共有用 |
-| **PDF** | 印刷・提出用に向く。 | **コードをコピーした時に改行や記号が崩れてエラーになる**トラブルが多発する。 | 提出書類用（開発演習には不向き） |
+私たちが普段使っているパソコンの電源を切ると、その中で動いているアプリも見られなくなってしまいます。
+そこで、**24時間365日ずっとインターネットに繋がり続けている専用のコンピューター（AWS EC2サーバー）** を1台借りて、そこにプログラムを設置します。
 
-> **【結論】**: リポジトリ内には **GitHub標準の `DEPLOY_GUIDE.md`** を配置し、学生配布用として **コードコピーボタン付きの `deploy_guide.html`** を同梱するのがベストです！
-
----
-
-## 2. PART 1: GitHub リポジトリ作成 ＆ Releases 公開
-
-### Step 1: ローカル Git リポジトリの初期化
-ルートディレクトリ（`91_SampleProgram`）で実行します：
-
-```bash
-# Git 初期化
-git init
-
-# ファイルをステージング (.gitignore により一時ファイルは自動除外)
-git add .
-
-# 初回コミット
-git commit -m "feat: initial commit of exShop Multi-Framework EC Suite (Django, Flask, Servlet)"
+```
+[ あなたのパソコン ]
+       │
+       ▼ (1) プログラムをGitHubに送る (完了済み)
+  [ GitHub ]
+       │
+       ▼ (2) サーバーがGitHubからプログラムをダウンロードする
+[ AWS EC2 サーバー (インターネット上のコンピューター) ]
+       │
+       ├─ 受付係（Nginx）：インターネットからのアクセスを整理する
+       ├─ アプリ本体（Django / Flask / Servlet）：画面や機能を動かす
+       └─ データベース（PostgreSQL / SQLite）：データを安全に保管する
 ```
 
-### Step 2: GitHub へのプッシュ
-1. GitHub にログインし、**「New repository」** から空のリポジトリ（例: `exShop-suite`）を作成。
-2. 以下のコマンドでリモート登録＆プッシュ：
+作業は以下の **5つのステップ** で進めます。
 
-```bash
-# main ブランチにリネーム
-git branch -M main
+1. **AWSで自分専用のサーバー（EC2）を作成する**
+2. **自分のパソコンからサーバーにログイン（遠隔操作）する**
+3. **サーバーにプログラムと必要な道具を準備する**
+4. **アプリをサーバー上で起動する（常駐化）**
+5. **インターネットからのアクセスを受付係（Nginx）に繋ぐ**
 
-# リモートURLの登録
-git remote add origin https://github.com/<あなたのユーザー名>/exShop-suite.git
+---
 
-# プッシュ
-git push -u origin main
-```
+## ステップ 1: AWSでサーバー（EC2）を作ろう
 
-### Step 3: GitHub Releases による学生向けバイナリ配布
-1. バージョンタグを切ってプッシュします：
-   ```bash
-   git tag -a v1.0.0 -m "Release v1.0.0: exShop Suite"
-   git push origin v1.0.0
+まずはAWS（Amazon Web Services）の中に、Linux（Ubuntu）というOSが入ったコンピューターを1台新しく立ち上げます。
+
+### 1-1. AWSマネジメントコンソールにログインする
+1. ブラウザでAWSにサインインします。
+2. 画面右上の地域（リージョン）が **「東京（ap-northeast-1）」** になっていることを確認してください。（他の地域だと通信が少し遅くなります）
+
+### 1-2. EC2の画面を開く
+1. 画面上部の検索バーに `EC2` と入力し、表示された **「EC2」** をクリックします。
+2. 左メニューの「インスタンス」をクリックし、オレンジ色の **「インスタンスを起動」** ボタンをクリックします。
+
+### 1-3. サーバーの設定を決める
+画面の指示に従って、上から順番に設定を入力・選択していきます。
+
+| 項目名 | 設定する値 | 解説 |
+| :--- | :--- | :--- |
+| **名前とタグ** | `my-web-server` など自由 | サーバーの識別名です。わかりやすい名前をつけます。 |
+| **アプリケーションおよび OS イメージ (AMI)** | **Ubuntu** を選択<br>（バージョン: **Ubuntu Server 24.04 LTS**） | サーバー用として世界中で最も広く使われている安定したLinuxです。 |
+| **アーキテクチャ** | `64 ビット (x86)` | 標準のCPU形式です。 |
+| **インスタンスタイプ** | **`t2.micro`** または **`t3.micro`** | 「無料利用枠の対象」と緑色で書かれているものを選びます。 |
+
+### 1-4. キーペア（サーバーの鍵）を作る
+サーバーにログインするための「秘密鍵」を作ります。**この鍵を紛失すると二度とサーバーに入れなくなるため大切に保管してください。**
+
+1. **「キーペア (ログイン)」** の項目で、右側の **「新しいキーペアの作成」** をクリックします。
+2. **キーペア名**: `my-key` など英数字で入力します。
+3. **キーペアのタイプ**: `RSA` を選択します。
+4. **プライベートキーファイル形式**:
+   - WindowsのPowerShellやMacのターミナルを使う場合: **`.pem`** を選択
+5. **「キーペアを作成」** をクリックすると、パソコンに `my-key.pem` というファイルがダウンロードされます。
+   - ダウンロードしたファイルは、誤って削除しない安全な場所（例: `C:\Users\ユーザー名\.ssh\` やデスクトップの専用フォルダ）に保存しておきます。
+
+### 1-5. ネットワーク設定（ファイアウォールの設定）
+インターネットからサーバーへの「通信の通り道」を開けます。
+
+1. **「ネットワーク設定」** の右側にある **「編集」** をクリックします。
+2. **ファイアウォール (セキュリティグループ)** で **「セキュリティグループを作成」** を選択します。
+3. 以下の **3つのルール** が入っていることを確認します。（足りない場合は「セキュリティグループルールの追加」をクリックして追加します）
+
+| 種類 | ポート範囲 | ソース（接続元） | 役割 |
+| :--- | :--- | :--- | :--- |
+| **SSH** | `22` | **自分のIP**（推奨）または `任意の場所 (0.0.0.0/0)` | 自分のパソコンからサーバーを遠隔操作するための通り道 |
+| **HTTP** | `80` | **任意の場所 (0.0.0.0/0)** | 世界中の人がWebブラウザでホームページを見るための通り道 |
+| **HTTPS** | `443` | **任意の場所 (0.0.0.0/0)** | 暗号化された安全なWeb通信のための通り道 |
+
+> [!WARNING]
+> HTTP（ポート80）にチェックが入っていないと、あとでアプリを動かしてもブラウザからサイトを開くことができません。必ず「インターネットからの HTTP トラフィックを許可する」にチェックを入れてください。
+
+### 1-6. 起動する
+画面右下のオレンジ色の **「インスタンスを起動」** ボタンをクリックします。
+約1〜2分待つと、インスタンス一覧画面でステータスが **「実行中」** に変わります。
+
+---
+
+## ステップ 2: 自分のパソコンからサーバーに遠隔ログインしよう
+
+手元のパソコンから黒い画面（ターミナル）を使って、クラウド上のサーバーに「SSH」という仕組みで遠隔接続します。
+
+### 2-1. サーバーの「IPアドレス」を調べる
+1. EC2の「インスタンス」画面で、作成したサーバーをクリックして選択します。
+2. 画面下部に表示される情報の中から **「パブリック IPv4 アドレス」**（例: `54.238.123.45` のような4つの数字の組み合わせ）を見つけてコピーします。
+
+### 2-2. ターミナルから接続する
+手元のパソコンで **PowerShell**（Windows）または **ターミナル**（Mac）を開きます。
+
+1. ダウンロードした鍵ファイル（`.pem`）がある場所に移動します。
+   （例: ダウンロードフォルダにある場合）
+   ```powershell
+   cd C:\Users\admin\Downloads
    ```
-2. GitHub リポジトリ画面右側の **「Releases」→「Create a new release」** を開きます。
-3. `v1.0.0` タグを選択し、タイトルを入力（例: `v1.0.0 - 初回リリース`）。
-4. **「Attach binaries」** エリアに以下の配布ファイルをドラッグ＆ドロップして添付：
-   - `01_Django/exShop_project.zip` (Django演習パッケージ)
-   - `02_Flask/exShop_flask.zip` (Flask演習パッケージ)
-   - `03_Servlet/target/exShop.war` (Servletビルド成果物)
-5. **「Publish release」** をクリック。学生は Release ページから一発でダウンロード可能になります。
+
+2. 鍵を使って以下のコマンドでサーバーにログインします：
+   （※ `my-key.pem` はご自身の鍵ファイル名、`54.238.123.45` は先ほどコピーした自分のパブリックIPv4アドレスに置き換えてください）
+   ```powershell
+   ssh -i my-key.pem ubuntu@54.238.123.45
+   ```
+
+3. 初回接続時、英語で「本当に接続しますか？ (yes/no/[fingerprint])」と聞かれます。
+   キーボードで **`yes`** と入力して Enter を押します。
+
+4. 画面の左側の表示が `ubuntu@ip-172-31-xx-xx:~$` のように変われば、**サーバーへの遠隔ログイン成功** です！
+   ここからの作業は、すべてこのサーバーの中で実行します。
 
 ---
 
-## 3. PART 2: AWS EC2 インスタンスの準備 ＆ 初期設定
+## ステップ 3: サーバーに必要な道具を入れよう
 
-### 1. EC2 インスタンスの作成
-- **AMI**: Ubuntu Server 22.04 LTS または 24.04 LTS (x86_64)
-- **インスタンスタイプ**: `t3.small` または `t3.medium` 推奨 (メモリ 2GB 以上が快適)
-- **ストレージ**: 20GB ~ 30GB (gp3)
+生まれたてのサーバーには、PythonもJavaもデータベースも入っていません。アプリを動かすための道具を一括でインストールします。
 
-### 2. セキュリティグループの設定 (インバウンドルール)
-| タイプ | プロトコル | ポート範囲 | ソース | 説明 |
-|---|---|---|---|---|
-| SSH | TCP | 22 | 自分のIP | 管理用接続 |
-| HTTP | TCP | 80 | 0.0.0.0/0 | Nginx Webアクセス |
-| カスタムTCP | TCP | 8000 | 0.0.0.0/0 | Django 直接確認用 (任意) |
-| カスタムTCP | TCP | 5000 | 0.0.0.0/0 | Flask 直接確認用 (任意) |
-| カスタムTCP | TCP | 8090 | 0.0.0.0/0 | Servlet 直接確認用 (任意) |
+### 3-1. サーバーを最新の状態に更新する
+サーバーの中身を最新情報に更新します。以下のコマンドを1行ずつコピーして貼り付け、Enter を押してください。
 
-### 3. EC2 に SSH 接続し、共通ミドルウェアを一括インストール
 ```bash
 sudo apt update && sudo apt upgrade -y
+```
+> **コマンドの意味**:
+> `sudo` は「管理者権限で実行する」、`apt` はUbuntuの「アプリストア（パッケージ管理）」です。スマートフォンでいう「OSのアップデート」を行っています。
 
-# 共通ツールのインストール (Git, Nginx, Python3, JDK 17, Tomcat 10)
-sudo apt install -y git nginx curl build-essential     python3-pip python3-venv python3-dev libpq-dev     openjdk-17-jdk tomcat10 postgresql postgresql-contrib
+### 3-2. 必要なソフトウェアをまとめてインストールする
+Webサーバー（Nginx）、Python、Java、PostgreSQL、Git をインストールします。
 
-# リポジトリのクローン
+```bash
+sudo apt install -y python3-pip python3-venv openjdk-17-jdk tomcat10 postgresql postgresql-contrib nginx git
+```
+（※処理が終わるまで1〜2分かかります。プロンプト `ubuntu@...:$` に戻るまでお待ちください）
+
+### 3-3. GitHubからプログラムをダウンロードする
+サーバー上にWebプログラムを置くための専用フォルダ（`/var/www`）を作り、GitHubからプログラムをまるごとクローン（複製）します。
+
+```bash
 cd /var/www
-sudo git clone https://github.com/<あなたのユーザー名>/exShop-suite.git
-sudo chown -R ubuntu:ubuntu /var/www/exShop-suite
-cd /var/www/exShop-suite
+sudo git clone https://github.com/th-kairi/91_SampleProgram.git exshop
+sudo chown -R ubuntu:ubuntu /var/www/exshop
 ```
+> **コマンドの意味**:
+> `cd /var/www` でWeb用の保管場所に移動し、`git clone` でGitHubから最新プログラムをダウンロードしています。
+> 最後の `chown` は、ダウンロードしたファイルの操作権限をログイン中の `ubuntu` ユーザーに渡す命令です。
+
+これで `/var/www/exshop` の中に、以下の3つのアプリが配置されました：
+- `01_Django` （Django版 ストリート系ECサイト）
+- `02_Flask` （Flask版 北欧ナチュラル系ECサイト）
+- `03_Servlet` （Servlet/JSP版 ラグジュアリー系ECサイト）
 
 ---
 
-## 4. PART 3: 各システムのデプロイ手順
+## ステップ 4: アプリケーションを動かそう（エディション別）
 
-### ① Django 版のデプロイ (Gunicorn + Systemd)
+動かしたいエディションの手順を選んで進めてください。もちろん、ポート（窓口番号）が分かれているため、**3つすべてを同時に動かすことも可能** です。
 
+---
+
+### コース A: Django版を動かす（ポート 8000）
+
+Djangoは、Pythonの専用の部屋（仮想環境 `venv`）を作って動かします。
+
+#### 1. フォルダに移動して仮想環境を作る
 ```bash
-cd /var/www/exShop-suite/01_Django/exShop
-
-# 1. 仮想環境の作成とライブラリ導入
+cd /var/www/exshop/01_Django
 python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+```
+（※プロンプトの先頭に `(venv)` と表示されれば仮想環境に入れています）
 
-# 2. 静的ファイルの集約 & DBマイグレーション & サンプルデータ投入
-python manage.py collectstatic --noinput
+#### 2. 必要なライブラリを入れる
+```bash
+pip install -r requirements.txt gunicorn
+```
+
+#### 3. データベースの準備と画像の整理
+```bash
 python manage.py migrate
-python manage.py load_sample_data
+python manage.py collectstatic --noinput
+```
 
-# 3. Gunicorn の systemd サービス定義を作成
-sudo bash -c 'cat <<EOF > /etc/systemd/system/exshop-django.service
+#### 4. 24時間止まらないようにバックグラウンドで動かす（systemd）
+ターミナルを閉じてもアプリが動き続けるように、Ubuntuの「常駐サービス」として登録します。以下のコマンドをそのまま貼り付けて Enter を押します。
+
+```bash
+sudo bash -c 'cat <<EOF > /etc/systemd/system/django_exshop.service
 [Unit]
-Description=Gunicorn daemon for exShop Django
+Description=Gunicorn instance for Django exShop
 After=network.target
 
 [Service]
 User=ubuntu
-Group=www-data
-WorkingDirectory=/var/www/exShop-suite/01_Django/exShop
-ExecStart=/var/www/exShop-suite/01_Django/exShop/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 exShop.wsgi:application
+WorkingDirectory=/var/www/exshop/01_Django
+Environment="PATH=/var/www/exshop/01_Django/venv/bin"
+ExecStart=/var/www/exshop/01_Django/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 exShop.wsgi:application
 
 [Install]
 WantedBy=multi-user.target
 EOF'
-
-# 4. サービスの起動と自動起動登録
-sudo systemctl daemon-reload
-sudo systemctl start exshop-django
-sudo systemctl enable exshop-django
-sudo systemctl status exshop-django
 ```
+
+サービスを起動します：
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now django_exshop
+```
+
+状態を確認します：
+```bash
+sudo systemctl status django_exshop
+```
+緑色で `active (running)` と表示されていれば、Djangoがサーバー内部（ポート8000）で正常に動き続けています！（確認が終わったらキーボードの `q` を押して元の画面に戻ります）
 
 ---
 
-### ② Flask 版のデプロイ (Gunicorn + Systemd)
+### コース B: Flask版を動かす（ポート 5000）
 
+#### 1. フォルダに移動して仮想環境を作る
 ```bash
-cd /var/www/exShop-suite/02_Flask
-
-# 1. 仮想環境の作成とライブラリ導入
+cd /var/www/exshop/02_Flask
 python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt gunicorn
+```
 
-# 2. サンプルデータの投入 (SQLite初期化)
-python seed.py
-
-# 3. Gunicorn の systemd サービス定義を作成
-sudo bash -c 'cat <<EOF > /etc/systemd/system/exshop-flask.service
+#### 2. 常駐サービスとして登録する
+```bash
+sudo bash -c 'cat <<EOF > /etc/systemd/system/flask_exshop.service
 [Unit]
-Description=Gunicorn daemon for exShop Flask Nordic
+Description=Gunicorn instance for Flask exShop Nordic
 After=network.target
 
 [Service]
 User=ubuntu
-Group=www-data
-WorkingDirectory=/var/www/exShop-suite/02_Flask
-ExecStart=/var/www/exShop-suite/02_Flask/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 run:app
+WorkingDirectory=/var/www/exshop/02_Flask
+Environment="PATH=/var/www/exshop/02_Flask/venv/bin"
+ExecStart=/var/www/exshop/02_Flask/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 run:app
 
 [Install]
 WantedBy=multi-user.target
 EOF'
-
-# 4. サービスの起動と自動起動登録
-sudo systemctl daemon-reload
-sudo systemctl start exshop-flask
-sudo systemctl enable exshop-flask
-sudo systemctl status exshop-flask
 ```
+
+サービスを起動します：
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now flask_exshop
+```
+
+状態を確認します：
+```bash
+sudo systemctl status flask_exshop
+```
+緑色で `active (running)` と表示されていれば成功です！（キーボードの `q` で戻ります）
 
 ---
 
-### ③ Servlet 版のデプロイ (Tomcat 10 + WAR)
+### コース C: Servlet / JSP版を動かす（Tomcat 10 + PostgreSQL）
+
+ServletはJava専用のWebコンテナ「Tomcat 10」と、本格的なリレーショナルデータベース「PostgreSQL」を使って動かします。
+
+#### 1. PostgreSQLにデータベースとユーザーを作る
+データベースの管理者（postgres）としてログインし、専用のユーザーとデータベースを作成します。
 
 ```bash
-cd /var/www/exShop-suite/03_Servlet
+sudo -u postgres psql -c "CREATE USER exshop WITH PASSWORD 'exshop_pass';"
+sudo -u postgres psql -c "CREATE DATABASE exshop_db OWNER exshop;"
+```
 
-# 1. PostgreSQL データベースの作成と初期化 (ローカルまたはAWS RDS)
-sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD 'postgres';"
-sudo -u postgres psql -c "CREATE DATABASE exshop_db OWNER postgres;"
-PGPASSWORD=postgres psql -U postgres -h localhost -d exshop_db -f sql/schema.sql
-PGPASSWORD=postgres psql -U postgres -h localhost -d exshop_db -f sql/data.sql
+初期テーブルとサンプル商品データを流し込みます：
+```bash
+cd /var/www/exshop/03_Servlet
+PGPASSWORD='exshop_pass' psql -U exshop -d exshop_db -h localhost -f sql/schema.sql
+PGPASSWORD='exshop_pass' psql -U exshop -d exshop_db -h localhost -f sql/data.sql
+```
 
-# 2. Maven による WAR パッケージのビルド
-mvn clean package -DskipTests
-# ※ mvn コマンドがない場合は: ./.tools/maven/apache-maven-3.9.9/bin/mvn clean package -DskipTests
+#### 2. WARファイルをTomcatに配置する
+JavaのWebアプリは、すべての部品がひとつに圧縮された「WARファイル」としてTomcatに渡すだけで動きます。
 
-# 3. Tomcat 10 への WAR ファイル配置
-# /var/lib/tomcat10/webapps/exShop.war として配置 (http://<IP>/exShop/ でアクセス可能に)
-sudo cp target/exShop.war /var/lib/tomcat10/webapps/exShop.war
-sudo chown -R tomcat:tomcat /var/lib/tomcat10/webapps/exShop.war
-
-# 4. Tomcat 10 の再起動
+```bash
+# プログラムをビルドしてWARファイルを作成（すでにtargetにある場合はコピーでOK）
+cd /var/www/exshop/03_Servlet
+sudo cp target/exShop.war /var/lib/tomcat10/webapps/ROOT.war
 sudo systemctl restart tomcat10
+```
+> **ポイント**: `ROOT.war` という名前にして配置することで、URLの末尾に余計なパスを付けずにトップページとして表示できるようになります。
+
+状態を確認します：
+```bash
 sudo systemctl status tomcat10
 ```
+緑色で `active (running)` となっていれば成功です！（`q` で戻ります）
 
 ---
 
-## 5. PART 4: Nginx による 1台のEC2での同時公開設定
+## ステップ 5: 受付係（Nginx）を設定して世界に公開しよう！
 
-1台の EC2 インスタンス（ポート80）で、3つのシステムすべてにルーティングする設定例です。
+現在、各アプリはサーバーの内部（8000番や5000番、8080番）で元気に動いていますが、外部のインターネットからはセキュリティのため直接これらのポートには入れません。
+そこで、**Webの標準窓口である「80番ポート（HTTP）」でアクセスを受け取り、それぞれのアプリへ案内する受付係（Nginx）** を設定します。
 
-### `/etc/nginx/sites-available/default` を編集:
+```
+[ インターネット (ブラウザ) ]
+           │
+           ▼ ポート 80 でアクセス
+     [ Nginx（受付係） ]
+    ┌──────┼──────┐
+    │      │      └─ URLが「/servlet/」なら ──▶ Tomcat (Port 8080)
+    │      └──────── URLが「/flask/」なら ───▶ Flask (Port 5000)
+    └─────────────── 通常のアクセス ─────────▶ Django (Port 8000)
+```
+
+### 5-1. Nginxの設定ファイルを書き換える
+以下のコマンドをまるごと貼り付けて Enter を押します。Nginxに「どのURLに来たら、どのアプリに案内するか」の地図を登録します。
+
 ```bash
 sudo bash -c 'cat <<EOF > /etc/nginx/sites-available/default
 server {
     listen 80 default_server;
-    listen [::]:80 default_server;
     server_name _;
 
-    client_max_body_size 50M;
+    # Djangoの画像・CSSファイルを直接高速配信する設定
+    location /static/ {
+        alias /var/www/exshop/01_Django/static/;
+    }
+    location /media/ {
+        alias /var/www/exshop/01_Django/media/;
+    }
 
-    # 1. Django 版へのルーティング (ポート8000または /django/ 等)
-    location /django/ {
-        proxy_pass http://127.0.0.1:8000/;
+    # 通常アクセス (/) は Django へ案内
+    location / {
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # 2. Flask 版へのルーティング (ポート5000または /flask/ 等)
+    # 「/flask/」で始まるアクセスは Flask へ案内
     location /flask/ {
         proxy_pass http://127.0.0.1:5000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # 3. Servlet 版へのルーティング (Tomcat /exShop/)
+    # 「/servlet/」で始まるアクセスは Tomcat (Servlet) へ案内
     location /servlet/ {
-        proxy_pass http://127.0.0.1:8080/exShop/;
+        proxy_pass http://127.0.0.1:8080/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # ルートアクセス時のデフォルト（Django版へ転送）
-    location / {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF'
-
-# Nginx 設定テストと再読み込み
-sudo nginx -t
-sudo systemctl reload nginx
 ```
 
-ブラウザで `http://<EC2のパブリックIP>/` にアクセスすると、Nginx を経由して各システムへ快適にアクセスできます！
+### 5-2. 設定をテストしてNginxを再起動する
+設定ファイルに誤字や文法エラーがないかチェックします：
+```bash
+sudo nginx -t
+```
+画面に `syntax is ok` および `test is successful` と出れば完璧です！
+
+Nginxを再起動して新しい設定を反映します：
+```bash
+sudo systemctl restart nginx
+```
+
+---
+
+## ステップ 6: ブラウザで実際に見てみよう！
+
+おめでとうございます！これでインターネットへの公開作業はすべて完了です。
+手元のパソコンやスマートフォンのブラウザを開いて、以下のURLにアクセスしてみましょう。
+
+* **Django版（ストリート系デザイン）を見たいとき**:
+  `http://<あなたのEC2のパブリックIP>/`
+  （例: `http://54.238.123.45/`）
+
+* **Flask版（北欧ナチュラル系デザイン）を見たいとき**:
+  `http://<あなたのEC2のパブリックIP>/flask/`
+  （例: `http://54.238.123.45/flask/`）
+
+* **Servlet版（ラグジュアリー・シック系デザイン）を見たいとき**:
+  `http://<あなたのEC2のパブリックIP>/servlet/`
+  （例: `http://54.238.123.45/servlet/`）
+
+スマートフォンからでも、友人のパソコンからでも、URLを入力すれば自分が立ち上げた本格ECサイトが世界中どこからでも閲覧・注文できます！
+
+---
+
+## 困ったときのトラブルシューティング
+
+### Q1. ブラウザで開いても「応答時間が長すぎます」「接続できません」となる
+* **原因**: AWSのセキュリティグループで、HTTP（ポート80）の通信がブロックされています。
+* **解決策**: AWSマネジメントコンソールの「EC2」→「セキュリティグループ」を開き、「インバウンドルール」に「HTTP / ポート80 / 0.0.0.0/0」が許可されているか確認してください。
+
+### Q2. 「502 Bad Gateway」というエラー画面が出る
+* **原因**: 受付係のNginxは動いていますが、その奥にいるアプリ（DjangoやFlask）が起動していません。
+* **解決策**: サーバーのターミナルで `sudo systemctl status django_exshop` または `sudo systemctl status flask_exshop` を実行し、赤文字でエラーが出ていないか確認してください。停止している場合は `sudo systemctl restart django_exshop` を試します。
+
+### Q3. サイトは開くが、画像やデザイン（CSS）が崩れて文字だけになる
+* **原因**: 画像やCSSファイルの場所が正しく読み込めていません。
+* **解決策**: Djangoの場合は `cd /var/www/exshop/01_Django && python manage.py collectstatic --noinput` を再度実行し、ファイルのアクセス権限（`sudo chown -R ubuntu:ubuntu /var/www/exshop`）を与え直してください。

@@ -1,511 +1,534 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>exShop リリース＆AWSデプロイ完全手順書 (Django / Flask / Servlet)</title>
-    <style>
-        :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg: #0f172a;
-            --surface: #1e293b;
-            --surface-card: #334155;
-            --text: #f8fafc;
-            --text-muted: #94a3b8;
-            --border: #475569;
-            --code-bg: #090d16;
-            --gold: #f59e0b;
-            --green: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            line-height: 1.7;
-            padding: 2rem 1rem;
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-        }
-        header {
-            text-align: center;
-            margin-bottom: 3rem;
-            padding-bottom: 2rem;
-            border-bottom: 1px solid var(--border);
-        }
-        h1 {
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: #ffffff;
-            margin-bottom: 1rem;
-            letter-spacing: -0.02em;
-        }
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 1.1rem;
-        }
-        .badge-bar {
-            display: flex;
-            gap: 0.5rem;
-            justify-content: center;
-            margin-top: 1rem;
-            flex-wrap: wrap;
-        }
-        .badge {
-            background-color: var(--surface);
-            color: var(--text-muted);
-            border: 1px solid var(--border);
-            padding: 0.35rem 0.8rem;
-            border-radius: 9999px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-        .badge-django { border-color: #3b82f6; color: #60a5fa; }
-        .badge-flask { border-color: #10b981; color: #34d399; }
-        .badge-servlet { border-color: #f59e0b; color: #fbbf24; }
-        
-        .toc-card {
-            background-color: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 3rem;
-        }
-        .toc-title {
-            font-weight: 700;
-            margin-bottom: 1rem;
-            color: var(--gold);
-        }
-        .toc-list {
-            list-style: none;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 0.75rem;
-        }
-        .toc-list a {
-            color: var(--text);
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            transition: color 0.2s;
-        }
-        .toc-list a:hover {
-            color: var(--primary);
-        }
-
-        h2 {
-            font-size: 1.6rem;
-            color: #ffffff;
-            margin-top: 3rem;
-            margin-bottom: 1.2rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 2px solid var(--border);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-        h3 {
-            font-size: 1.25rem;
-            color: var(--gold);
-            margin-top: 2rem;
-            margin-bottom: 0.8rem;
-        }
-        p { margin-bottom: 1rem; color: #cbd5e1; }
-        ul, ol { margin-left: 1.5rem; margin-bottom: 1.5rem; color: #cbd5e1; }
-        li { margin-bottom: 0.5rem; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.5rem 0;
-            background-color: var(--surface);
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-        }
-        th, td {
-            padding: 0.85rem 1rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-        th {
-            background-color: var(--surface-card);
-            font-weight: 700;
-            color: #ffffff;
-        }
-
-        /* Code Block with Copy Button */
-        .code-container {
-            position: relative;
-            margin: 1.2rem 0;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background-color: var(--code-bg);
-        }
-        .code-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            background-color: #050811;
-            border-bottom: 1px solid #1e293b;
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            font-family: monospace;
-        }
-        .copy-btn {
-            background-color: var(--surface-card);
-            color: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            padding: 0.3rem 0.7rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .copy-btn:hover {
-            background-color: var(--primary);
-            border-color: var(--primary);
-        }
-        pre {
-            padding: 1.2rem 1rem;
-            overflow-x: auto;
-            font-family: Consolas, Monaco, "Andale Mono", monospace;
-            font-size: 0.9rem;
-            line-height: 1.6;
-            color: #e2e8f0;
-        }
-
-        .alert-box {
-            background-color: rgba(37, 99, 235, 0.1);
-            border-left: 4px solid var(--primary);
-            padding: 1rem 1.2rem;
-            border-radius: 0 8px 8px 0;
-            margin: 1.5rem 0;
-        }
-        .alert-box strong { color: #60a5fa; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Webアプリケーション公開実践マニュアル（AWS EC2編）</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --bg: #0f172a;
+    --card-bg: #1e293b;
+    --card-border: #334155;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --code-bg: #090d16;
+    --code-border: #1e293b;
+    --accent-green: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    padding: 40px 20px;
+  }
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+  }
+  header {
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .badge {
+    display: inline-block;
+    padding: 6px 14px;
+    background: rgba(37, 99, 235, 0.2);
+    border: 1px solid rgba(37, 99, 235, 0.4);
+    border-radius: 9999px;
+    color: #60a5fa;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 12px;
+    color: #ffffff;
+  }
+  .lead {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 36px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  }
+  h2 {
+    font-size: 1.45rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #ffffff;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 12px;
+  }
+  h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin: 22px 0 10px;
+    color: #93c5fd;
+  }
+  p, ul, ol {
+    margin-bottom: 14px;
+    color: #cbd5e1;
+  }
+  ul, ol {
+    padding-left: 24px;
+  }
+  li { margin-bottom: 6px; }
+  strong { color: #ffffff; }
+  .table-container {
+    overflow-x: auto;
+    margin: 16px 0;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  th, td {
+    padding: 12px 14px;
+    border: 1px solid var(--card-border);
+    text-align: left;
+  }
+  th {
+    background: rgba(255,255,255,0.05);
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+  .code-block {
+    position: relative;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 8px;
+    margin: 14px 0;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.03);
+    border-bottom: 1px solid var(--code-border);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .copy-btn {
+    background: #334155;
+    color: #f8fafc;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover {
+    background: var(--primary);
+  }
+  .copy-btn.copied {
+    background: var(--accent-green);
+    color: #ffffff;
+  }
+  pre {
+    padding: 14px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: #38bdf8;
+    line-height: 1.5;
+  }
+  .alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin: 16px 0;
+    font-size: 0.95rem;
+  }
+  .alert-info {
+    background: rgba(37, 99, 235, 0.12);
+    border-left: 4px solid var(--primary);
+    color: #93c5fd;
+  }
+  .alert-warning {
+    background: rgba(245, 158, 11, 0.12);
+    border-left: 4px solid var(--accent-amber);
+    color: #fde68a;
+  }
+  .alert-success {
+    background: rgba(16, 185, 129, 0.12);
+    border-left: 4px solid var(--accent-green);
+    color: #a7f3d0;
+  }
+  .step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+  .nav-toc {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+  }
+  .nav-toc a {
+    color: #60a5fa;
+    text-decoration: none;
+    margin-right: 18px;
+    font-size: 0.92rem;
+    display: inline-block;
+    padding: 4px 0;
+  }
+  .nav-toc a:hover {
+    text-decoration: underline;
+  }
+</style>
 </head>
 <body>
 
 <div class="container">
-    <header>
-        <h1>exShop Multi-Framework Suite</h1>
-        <div class="subtitle">GitHub リリース ＆ AWS EC2 本番デプロイ完全マニュアル</div>
-        <div class="badge-bar">
-            <span class="badge badge-django">01 Django (Port 8000)</span>
-            <span class="badge badge-flask">02 Flask (Port 5000)</span>
-            <span class="badge badge-servlet">03 Servlet & WAR (Port 8090)</span>
-            <span class="badge">Nginx Reverse Proxy</span>
-        </div>
-    </header>
+  <header>
+    <div class="badge">実習・本番公開ガイド</div>
+    <h1>Webアプリケーション公開実践マニュアル（AWS EC2編）</h1>
+    <p class="lead">手元のパソコンで作ったWebアプリケーション（Django / Flask / Servlet）を、クラウドサーバー（AWS EC2）に設置して、世界中のインターネットからアクセスできるようにするまでの全手順をわかりやすく解説します。</p>
+  </header>
 
-    <div class="toc-card">
-        <div class="toc-title">INDEX / 目次</div>
-        <ul class="toc-list">
-            <li><a href="#section1">1. 手順書の形式と推奨運用方法</a></li>
-            <li><a href="#section2">2. GitHub リポジトリ作成 ＆ Releases 公開</a></li>
-            <li><a href="#section3">3. AWS EC2 インスタンスの準備 ＆ 初期構築</a></li>
-            <li><a href="#section4">4. 各システムのデプロイ手順</a></li>
-            <li><a href="#section4-1">　├ ① Django 版 (Gunicorn + Systemd)</a></li>
-            <li><a href="#section4-2">　├ ② Flask 版 (Gunicorn + Systemd)</a></li>
-            <li><a href="#section4-3">　└ ③ Servlet 版 (Tomcat 10 + WAR)</a></li>
-            <li><a href="#section5">5. Nginx による 1台での同時公開設定</a></li>
-        </ul>
+  <div class="nav-toc">
+    <strong>📋 目次ナビゲーション:</strong><br>
+    <a href="#step0">全体の仕組み</a>
+    <a href="#step1">ステップ1: EC2サーバーの作成</a>
+    <a href="#step2">ステップ2: サーバーへのログイン</a>
+    <a href="#step3">ステップ3: ソフトウェアの準備</a>
+    <a href="#step4">ステップ4: アプリの起動</a>
+    <a href="#step5">ステップ5: Nginx受付係の設定</a>
+    <a href="#step6">ステップ6: ブラウザ表示確認</a>
+    <a href="#trouble">困ったときは</a>
+  </div>
+
+  <!-- 全体像 -->
+  <div class="card" id="step0">
+    <h2>全体の流れ（何をするのか？）</h2>
+    <p>普段使っているパソコンの電源を切ると、その中で動いているアプリも外から見られなくなってしまいます。<br>
+    そこで、<strong>24時間365日ずっとインターネットに繋がり続けている専用コンピューター（AWS EC2サーバー）</strong> を1台借りて、そこにプログラムを設置します。</p>
+
+    <div class="alert alert-info">
+      <strong>構成の全体イメージ：</strong><br>
+      ① あなたのPC（GitHubへコード送信） ➡ ② クラウド上のEC2サーバー（GitHubからダウンロード） ➡ ③ Nginx（受付係が80番ポートでアクセスを受け取る） ➡ ④ 各アプリ（Django:8000 / Flask:5000 / Servlet:8080）へ自動振り分け
     </div>
+  </div>
 
-    <!-- Section 1 -->
-    <h2 id="section1">1. 手順書の形式と推奨運用方法</h2>
-    <p>演習マニュアルや社内ドキュメントの形式について、各メディアのメリットと注意点を比較します：</p>
-    <table>
-        <thead>
-            <tr>
-                <th>形式</th>
-                <th>メリット</th>
-                <th>デメリット</th>
-                <th>おすすめの用途</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td><strong>Markdown (.md)</strong><br><span style="color:var(--green)">★原本推奨</span></td>
-                <td>GitHub上で最も見やすく、IDEでも直接閲覧・Git管理できる。Qiita/Zennへの転載もワンクリック。</td>
-                <td>ブラウザ単体では生のテキスト表示になる。</td>
-                <td><strong>リポジトリ直下に配置する原本（マスター）</strong></td>
-            </tr>
-            <tr>
-                <td><strong>単一HTML (.html)</strong><br><span style="color:var(--green)">★実習推奨</span></td>
-                <td><strong>全環境（Win/Mac/スマホ）でブラウザさえあれば100%完璧に動作</strong>。コピーボタン等のUIを完備。</td>
-                <td>テキストエディタで見るとタグが多くなる。</td>
-                <td><strong>学生への配布・ローカル自習用マニュアル</strong></td>
-            </tr>
-            <tr>
-                <td><strong>Qiita / Zenn</strong></td>
-                <td>一般公開が容易で、学外からの認知やポートフォリオ・実績アピールになる。</td>
-                <td>限定公開設定や機密情報管理に注意が必要。</td>
-                <td>一般公開・知見共有用</td>
-            </tr>
-            <tr>
-                <td><strong>PDF</strong></td>
-                <td>印刷や紙での提出用に向く。</td>
-                <td><strong>コードコピー時に改行やインデントが崩れて実行エラーになる</strong>トラブルが多発。</td>
-                <td>提出書類用（プログラミング実習には不向き）</td>
-            </tr>
-        </tbody>
-    </table>
-    <div class="alert-box">
-        <strong>【結論】</strong> 本リポジトリでは、GitHub標準の <code>DEPLOY_GUIDE.md</code> をマスターとして保持しつつ、本 <code>deploy_guide.html</code> を同梱することで、学生全員がミスなくコマンドをコピーして演習を進められるようにしています！
-    </div>
+  <!-- ステップ 1 -->
+  <div class="card" id="step1">
+    <h2><span class="step-num">1</span> ステップ 1: AWSでサーバー（EC2）を作ろう</h2>
+    <p>AWSマネジメントコンソールから、Linux（Ubuntu）が入った仮想コンピューターを1台立ち上げます。</p>
 
-    <!-- Section 2 -->
-    <h2 id="section2">2. GitHub リポジトリ作成 ＆ Releases 公開</h2>
-    <p>ルートディレクトリ（<code>91_SampleProgram</code>）で以下のコマンドを実行し、GitHub へプッシュします：</p>
-
-    <div class="code-container">
-        <div class="code-header"><span>BASH</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code># 1. Git初期化
-git init
-
-# 2. ファイルをステージング (.gitignore で不要ファイルは自動除外)
-git add .
-
-# 3. コミット
-git commit -m "feat: initial commit of exShop Multi-Framework EC Suite"
-
-# 4. mainブランチ設定 &amp; リモート登録
-git branch -M main
-git remote add origin https://github.com/&lt;あなたのユーザー名&gt;/exShop-suite.git
-
-# 5. プッシュ
-git push -u origin main</code></pre>
-    </div>
-
-    <h3>GitHub Releases による学生向けパッケージ配布</h3>
+    <h3>1-1. AWSにログインして東京リージョンを確認する</h3>
     <ol>
-        <li>バージョンタグを切ってプッシュします：
-            <div class="code-container">
-                <div class="code-header"><span>BASH</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-                <pre><code>git tag -a v1.0.0 -m "Release v1.0.0: exShop Suite"
-git push origin v1.0.0</code></pre>
-            </div>
-        </li>
-        <li>GitHub リポジトリ右側の <strong>「Releases」→「Create a new release」</strong> を開きます。</li>
-        <li>タグ <code>v1.0.0</code> を選択し、以下の3つの成果物ファイルをドラッグ＆ドロップして添付します：
-            <ul>
-                <li><code>01_Django/exShop_project.zip</code> (Django版演習パッケージ)</li>
-                <li><code>02_Flask/exShop_flask.zip</code> (Flask版演習パッケージ)</li>
-                <li><code>03_Servlet/target/exShop.war</code> (Servletビルド成果物)</li>
-            </ul>
-        </li>
-        <li><strong>「Publish release」</strong> をクリックして公開します。</li>
+      <li>ブラウザでAWSマネジメントコンソールにサインインします。</li>
+      <li>画面右上の地域が<strong>「東京（ap-northeast-1）」</strong>になっていることを確認します。</li>
+      <li>上部の検索バーに <code>EC2</code> と入力し、一覧の「EC2」をクリックします。</li>
+      <li>左側メニューの「インスタンス」を開き、オレンジ色の<strong>「インスタンスを起動」</strong>ボタンをクリックします。</li>
     </ol>
 
-    <!-- Section 3 -->
-    <h2 id="section3">3. AWS EC2 インスタンスの準備 ＆ 初期構築</h2>
-    <h3>推奨インスタンス構成</h3>
-    <ul>
-        <li><strong>AMI</strong>: Ubuntu Server 22.04 LTS または 24.04 LTS (x86_64)</li>
-        <li><strong>インスタンスタイプ</strong>: <code>t3.small</code> または <code>t3.medium</code> 推奨 (メモリ2GB以上)</li>
-        <li><strong>セキュリティグループ</strong>: ポート <code>22</code> (SSH), <code>80</code> (HTTP), <code>443</code> (HTTPS) を開放</li>
-    </ul>
-
-    <h3>EC2 への SSH 接続と共通パッケージ一括インストール</h3>
-    <div class="code-container">
-        <div class="code-header"><span>BASH (EC2)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>sudo apt update &amp;&amp; sudo apt upgrade -y
-
-# 共通ツールのインストール (Git, Nginx, Python3, JDK 17, Tomcat 10, PostgreSQL)
-sudo apt install -y git nginx curl build-essential     python3-pip python3-venv python3-dev libpq-dev     openjdk-17-jdk tomcat10 postgresql postgresql-contrib
-
-# リポジトリのクローン
-cd /var/www
-sudo git clone https://github.com/&lt;あなたのユーザー名&gt;/exShop-suite.git
-sudo chown -R ubuntu:ubuntu /var/www/exShop-suite
-cd /var/www/exShop-suite</code></pre>
+    <h3>1-2. サーバーの基本設定</h3>
+    <div class="table-container">
+      <table>
+        <tr><th>項目名</th><th>選ぶ値</th><th>理由・解説</th></tr>
+        <tr><td><strong>名前とタグ</strong></td><td><code>my-web-server</code> など自由</td><td>サーバーを識別するための名前です。</td></tr>
+        <tr><td><strong>OSイメージ (AMI)</strong></td><td><strong>Ubuntu</strong><br>(Ubuntu Server 24.04 LTS)</td><td>世界中で一番広く使われている安定したサーバー用Linuxです。</td></tr>
+        <tr><td><strong>インスタンスタイプ</strong></td><td><strong><code>t2.micro</code></strong> または <strong><code>t3.micro</code></strong></td><td>「無料利用枠の対象」と書かれたものを選びます。</td></tr>
+      </table>
     </div>
 
-    <!-- Section 4 -->
-    <h2 id="section4">4. 各システムのデプロイ手順</h2>
+    <h3>1-3. キーペア（サーバーの鍵）を作る</h3>
+    <p>サーバーに遠隔ログインするための「秘密鍵」を発行します。<strong>紛失すると二度とサーバーに入れなくなるため大切に保管してください。</strong></p>
+    <ol>
+      <li>「キーペア (ログイン)」項目で、右側の<strong>「新しいキーペアの作成」</strong>をクリックします。</li>
+      <li>キーペア名に <code>my-key</code> など半角英数で入力します。</li>
+      <li>キーペアのタイプは <strong>RSA</strong>、ファイル形式は <strong><code>.pem</code></strong> を選びます。</li>
+      <li>「キーペアを作成」を押すと、パソコンに <code>my-key.pem</code> がダウンロードされます。安全なフォルダに保存してください。</li>
+    </ol>
 
-    <h3 id="section4-1">① Django 版のデプロイ (Gunicorn + Systemd)</h3>
-    <div class="code-container">
-        <div class="code-header"><span>BASH (EC2)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>cd /var/www/exShop-suite/01_Django/exShop
+    <h3>1-4. ネットワーク設定（ファイアウォール）</h3>
+    <p>インターネットからサーバーへの通信の「通り道」を決めます。</p>
+    <ol>
+      <li>「ネットワーク設定」の右上の<strong>「編集」</strong>をクリックします。</li>
+      <li>「セキュリティグループを作成」を選び、以下の<strong>3つのルール</strong>が揃っていることを確認します。</li>
+    </ol>
+    <div class="table-container">
+      <table>
+        <tr><th>種類</th><th>ポート番号</th><th>ソース（接続元）</th><th>役割</th></tr>
+        <tr><td><strong>SSH</strong></td><td><code>22</code></td><td>自分のIP または 0.0.0.0/0</td><td>自分のパソコンから遠隔操作するための通り道</td></tr>
+        <tr><td><strong>HTTP</strong></td><td><code>80</code></td><td>任意の場所 (0.0.0.0/0)</td><td>ブラウザでWebサイトを見るための通り道</td></tr>
+        <tr><td><strong>HTTPS</strong></td><td><code>443</code></td><td>任意の場所 (0.0.0.0/0)</td><td>暗号化された安全なWeb通信のための通り道</td></tr>
+      </table>
+    </div>
+    <div class="alert alert-warning">
+      <strong>注意:</strong> HTTP（80番ポート）が開いていないと、後からブラウザでアクセスしてもエラーになります。必ずチェックを入れましょう。
+    </div>
 
-# 仮想環境の作成とライブラリ導入
+    <h3>1-5. インスタンスの起動</h3>
+    <p>画面右下のオレンジ色の<strong>「インスタンスを起動」</strong>ボタンをクリックします。約1〜2分でステータスが「実行中」になります。</p>
+  </div>
+
+  <!-- ステップ 2 -->
+  <div class="card" id="step2">
+    <h2><span class="step-num">2</span> ステップ 2: 自分のパソコンからサーバーにログインしよう</h2>
+    <p>手元のPCの黒い画面（ターミナル / PowerShell）から、クラウド上のサーバーへ「SSH」接続します。</p>
+
+    <h3>2-1. サーバーの「パブリック IPv4 アドレス」をコピー</h3>
+    <p>EC2のインスタンス一覧画面で、作成したサーバーをクリックし、下部に表示される <strong>「パブリック IPv4 アドレス」</strong>（例: <code>54.238.123.45</code>）をコピーします。</p>
+
+    <h3>2-2. ターミナルから接続する</h3>
+    <p>手元のPCで <strong>PowerShell</strong>（Windows）または <strong>ターミナル</strong>（Mac）を開きます。</p>
+    <p>① 鍵（<code>.pem</code>）を保存したフォルダに移動します（例: ダウンロードフォルダの場合）：</p>
+    <div class="code-block">
+      <div class="code-header"><span>PowerShell</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>cd C:\Users\admin\Downloads</code></pre>
+    </div>
+
+    <p>② サーバーへログインします（※IPアドレスと鍵ファイル名はご自身のものに書き換えてください）：</p>
+    <div class="code-block">
+      <div class="code-header"><span>SSH接続コマンド</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>ssh -i my-key.pem ubuntu@54.238.123.45</code></pre>
+    </div>
+
+    <p>③ 初回のみ「接続を続けますか？ (yes/no)」と聞かれるので、キーボードで <strong><code>yes</code></strong> と打ち込んで Enter を押します。</p>
+    <div class="alert alert-success">
+      画面の左側の表示が <code>ubuntu@ip-172-31-xx-xx:~$</code> に変わればログイン大成功です！これ以降はすべてサーバーの中でコマンドを実行します。
+    </div>
+  </div>
+
+  <!-- ステップ 3 -->
+  <div class="card" id="step3">
+    <h2><span class="step-num">3</span> ステップ 3: サーバーに必要な道具を入れよう</h2>
+    
+    <h3>3-1. サーバーの中身を最新にアップデート</h3>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo apt update && sudo apt upgrade -y</code></pre>
+    </div>
+
+    <h3>3-2. ソフトウェアを一括インストール</h3>
+    <p>Python、Java 17、Tomcat 10、PostgreSQL、Nginx、Gitをまとめて導入します。</p>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo apt install -y python3-pip python3-venv openjdk-17-jdk tomcat10 postgresql postgresql-contrib nginx git</code></pre>
+    </div>
+
+    <h3>3-3. GitHubからプログラム一式をダウンロード</h3>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>cd /var/www
+sudo git clone https://github.com/th-kairi/91_SampleProgram.git exshop
+sudo chown -R ubuntu:ubuntu /var/www/exshop</code></pre>
+    </div>
+  </div>
+
+  <!-- ステップ 4 -->
+  <div class="card" id="step4">
+    <h2><span class="step-num">4</span> ステップ 4: アプリケーションを動かそう</h2>
+    <p>動かしたいエディションの手順を実行してください。（3つ全部同時に動かすことも可能です）</p>
+
+    <h3>コース A: Django版（ポート 8000）</h3>
+    <p>① 仮想環境の作成とパッケージ導入：</p>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>cd /var/www/exshop/01_Django
 python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# 静的ファイルの集約 &amp; DBマイグレーション &amp; サンプルデータ投入
-python manage.py collectstatic --noinput
+pip install -r requirements.txt gunicorn
 python manage.py migrate
-python manage.py load_sample_data
+python manage.py collectstatic --noinput</code></pre>
+    </div>
 
-# Gunicorn の systemd サービス定義を作成
-sudo bash -c 'cat &lt;&lt;EOF &gt; /etc/systemd/system/exshop-django.service
+    <p>② 24時間常駐サービスとして登録して起動：</p>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo bash -c 'cat <<EOF > /etc/systemd/system/django_exshop.service
 [Unit]
-Description=Gunicorn daemon for exShop Django
+Description=Gunicorn instance for Django exShop
 After=network.target
 
 [Service]
 User=ubuntu
-Group=www-data
-WorkingDirectory=/var/www/exShop-suite/01_Django/exShop
-ExecStart=/var/www/exShop-suite/01_Django/exShop/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 exShop.wsgi:application
+WorkingDirectory=/var/www/exshop/01_Django
+Environment="PATH=/var/www/exshop/01_Django/venv/bin"
+ExecStart=/var/www/exshop/01_Django/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 exShop.wsgi:application
 
 [Install]
 WantedBy=multi-user.target
 EOF'
 
-# サービスの起動と自動起動登録
 sudo systemctl daemon-reload
-sudo systemctl start exshop-django
-sudo systemctl enable exshop-django
-sudo systemctl status exshop-django</code></pre>
+sudo systemctl enable --now django_exshop</code></pre>
     </div>
 
-    <h3 id="section4-2">② Flask 版のデプロイ (Gunicorn + Systemd)</h3>
-    <div class="code-container">
-        <div class="code-header"><span>BASH (EC2)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>cd /var/www/exShop-suite/02_Flask
+    <hr style="border:0; border-top:1px dashed var(--card-border); margin:24px 0;">
 
-# 仮想環境の作成とライブラリ導入
+    <h3>コース B: Flask版（ポート 5000）</h3>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>cd /var/www/exshop/02_Flask
 python3 -m venv venv
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements.txt gunicorn
 
-# 初期データの投入
-python seed.py
-
-# Gunicorn の systemd サービス定義を作成
-sudo bash -c 'cat &lt;&lt;EOF &gt; /etc/systemd/system/exshop-flask.service
+sudo bash -c 'cat <<EOF > /etc/systemd/system/flask_exshop.service
 [Unit]
-Description=Gunicorn daemon for exShop Flask Nordic
+Description=Gunicorn instance for Flask exShop Nordic
 After=network.target
 
 [Service]
 User=ubuntu
-Group=www-data
-WorkingDirectory=/var/www/exShop-suite/02_Flask
-ExecStart=/var/www/exShop-suite/02_Flask/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 run:app
+WorkingDirectory=/var/www/exshop/02_Flask
+Environment="PATH=/var/www/exshop/02_Flask/venv/bin"
+ExecStart=/var/www/exshop/02_Flask/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 run:app
 
 [Install]
 WantedBy=multi-user.target
 EOF'
 
-# サービスの起動と自動起動登録
 sudo systemctl daemon-reload
-sudo systemctl start exshop-flask
-sudo systemctl enable exshop-flask
-sudo systemctl status exshop-flask</code></pre>
+sudo systemctl enable --now flask_exshop</code></pre>
     </div>
 
-    <h3 id="section4-3">③ Servlet 版のデプロイ (Tomcat 10 + WAR)</h3>
-    <div class="code-container">
-        <div class="code-header"><span>BASH (EC2)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>cd /var/www/exShop-suite/03_Servlet
+    <hr style="border:0; border-top:1px dashed var(--card-border); margin:24px 0;">
 
-# 1. PostgreSQL の作成と初期化
-sudo -u postgres psql -c "CREATE USER postgres WITH PASSWORD 'postgres';"
-sudo -u postgres psql -c "CREATE DATABASE exshop_db OWNER postgres;"
-PGPASSWORD=postgres psql -U postgres -h localhost -d exshop_db -f sql/schema.sql
-PGPASSWORD=postgres psql -U postgres -h localhost -d exshop_db -f sql/data.sql
+    <h3>コース C: Servlet版（Tomcat 10 + PostgreSQL）</h3>
+    <p>① PostgreSQLの初期化とデータ流し込み：</p>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo -u postgres psql -c "CREATE USER exshop WITH PASSWORD 'exshop_pass';"
+sudo -u postgres psql -c "CREATE DATABASE exshop_db OWNER exshop;"
 
-# 2. Maven による WAR ビルド
-./.tools/maven/apache-maven-3.9.9/bin/mvn clean package -DskipTests
-
-# 3. Tomcat 10 の webapps ディレクトリに配置
-sudo cp target/exShop.war /var/lib/tomcat10/webapps/exShop.war
-sudo chown -R tomcat:tomcat /var/lib/tomcat10/webapps/exShop.war
-
-# 4. Tomcat 10 の再起動
-sudo systemctl restart tomcat10
-sudo systemctl status tomcat10</code></pre>
+cd /var/www/exshop/03_Servlet
+PGPASSWORD='exshop_pass' psql -U exshop -d exshop_db -h localhost -f sql/schema.sql
+PGPASSWORD='exshop_pass' psql -U exshop -d exshop_db -h localhost -f sql/data.sql</code></pre>
     </div>
 
-    <!-- Section 5 -->
-    <h2 id="section5">5. Nginx による 1台での同時公開設定</h2>
-    <p>1台の EC2 インスタンス（ポート80）で、3つのシステムすべてにリバースプロキシする Nginx 設定です：</p>
+    <p>② WARファイルをTomcatに配置して再起動：</p>
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo cp /var/www/exshop/03_Servlet/target/exShop.war /var/lib/tomcat10/webapps/ROOT.war
+sudo systemctl restart tomcat10</code></pre>
+    </div>
+  </div>
 
-    <div class="code-container">
-        <div class="code-header"><span>BASH (EC2 Nginx 設定)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
-        <pre><code>sudo bash -c 'cat &lt;&lt;EOF &gt; /etc/nginx/sites-available/default
+  <!-- ステップ 5 -->
+  <div class="card" id="step5">
+    <h2><span class="step-num">5</span> ステップ 5: 受付係（Nginx）を設定して公開しよう</h2>
+    <p>外部からの80番ポートへのWebアクセスを受け取り、各アプリへ交通整理して案内する設定を行います。</p>
+
+    <div class="code-block">
+      <div class="code-header"><span>Bash</span><button class="copy-btn" onclick="copyCode(this)">コピー</button></div>
+      <pre><code>sudo bash -c 'cat <<EOF > /etc/nginx/sites-available/default
 server {
     listen 80 default_server;
-    listen [::]:80 default_server;
     server_name _;
 
-    client_max_body_size 50M;
+    location /static/ {
+        alias /var/www/exshop/01_Django/static/;
+    }
+    location /media/ {
+        alias /var/www/exshop/01_Django/media/;
+    }
 
-    # Django 版へのルーティング (/django/)
-    location /django/ {
-        proxy_pass http://127.0.0.1:8000/;
+    location / {
+        proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Flask 版へのルーティング (/flask/)
     location /flask/ {
         proxy_pass http://127.0.0.1:5000/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Servlet 版へのルーティング (/servlet/)
     location /servlet/ {
-        proxy_pass http://127.0.0.1:8080/exShop/;
+        proxy_pass http://127.0.0.1:8080/;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    # デフォルトアクセス (Django版)
-    location / {
-        proxy_pass http://127.0.0.1:8000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF'
 
-# Nginx 構文チェック &amp; 反映
+# テストと再起動
 sudo nginx -t
-sudo systemctl reload nginx</code></pre>
+sudo systemctl restart nginx</code></pre>
     </div>
+  </div>
 
-    <div class="alert-box">
-        <strong>アクセス確認:</strong><br>
-        ブラウザで <code>http://&lt;EC2のパブリックIP&gt;/django/</code>, <code>http://&lt;EC2のパブリックIP&gt;/flask/</code>, <code>http://&lt;EC2のパブリックIP&gt;/servlet/</code> にアクセスすると、それぞれのデザインで美しく動作します！
-    </div>
+  <!-- ステップ 6 -->
+  <div class="card" id="step6">
+    <h2><span class="step-num">6</span> ステップ 6: ブラウザで実際に見てみよう！</h2>
+    <p>おめでとうございます！これでインターネットへの本番公開が完了しました。</p>
+    <p>PCやスマートフォンのブラウザを開いて、以下のURLにアクセスしてください：</p>
+    <ul>
+      <li><strong>Django版（ストリート系デザイン）</strong>: <code>http://&lt;パブリックIP&gt;/</code></li>
+      <li><strong>Flask版（北欧ナチュラル系デザイン）</strong>: <code>http://&lt;パブリックIP&gt;/flask/</code></li>
+      <li><strong>Servlet版（ラグジュアリー・シック系デザイン）</strong>: <code>http://&lt;パブリックIP&gt;/servlet/</code></li>
+    </ul>
+  </div>
+
+  <!-- トラブルシューティング -->
+  <div class="card" id="trouble">
+    <h2>困ったときのトラブルシューティング</h2>
+    <h3>Q1. ブラウザで開いても「応答時間が長すぎます」「接続できません」となる</h3>
+    <p>➡ <strong>原因:</strong> AWSのセキュリティグループで、HTTP（ポート80）が開いていません。<br>
+    <strong>解決策:</strong> AWS管理画面の「EC2」➡「セキュリティグループ」➡「インバウンドルールを編集」で「HTTP / 80 / 0.0.0.0/0」を追加してください。</p>
+
+    <h3>Q2. 「502 Bad Gateway」というエラー画面が出る</h3>
+    <p>➡ <strong>原因:</strong> Nginx（受付係）の奥で動くアプリ（DjangoやFlaskなど）が止まっています。<br>
+    <strong>解決策:</strong> <code>sudo systemctl status django_exshop</code> を実行し、赤文字のエラーが出ていないか確認してください。</p>
+
+    <h3>Q3. 画面は開くが、画像やCSSが崩れて文字だけになる</h3>
+    <p>➡ <strong>原因:</strong> 画像やCSSのアクセス権限または収集が不足しています。<br>
+    <strong>解決策:</strong> <code>sudo chown -R ubuntu:ubuntu /var/www/exshop</code> を実行してください。</p>
+  </div>
 </div>
 
 <script>
 function copyCode(btn) {
-    const code = btn.parentElement.nextElementSibling.querySelector('code').innerText;
-    navigator.clipboard.writeText(code).then(() => {
-        const originalText = btn.innerText;
-        btn.innerText = 'Copied!';
-        btn.style.backgroundColor = '#10b981';
-        setTimeout(() => {
-            btn.innerText = originalText;
-            btn.style.backgroundColor = '';
-        }, 2000);
-    });
+  const code = btn.closest('.code-block').querySelector('pre code').innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    const originalText = btn.innerText;
+    btn.innerText = 'コピー完了!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerText = originalText;
+      btn.classList.remove('copied');
+    }, 2000);
+  });
 }
 </script>
 </body>
